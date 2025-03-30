@@ -5,8 +5,8 @@ using UnityEngine;
 public class SpawnManager : MonoBehaviour
 {
     public Transform[] spawnPoints;
-    public List<GameObject> enemyPrefabs; // List of enemy prefabs
-    public GameObject powerUpPrefab; // Prefab ของ PowerUp
+    public List<GameObject> enemyPrefabs;
+    public GameObject powerUpPrefab;
 
     [System.Serializable]
     public class WaveData
@@ -18,9 +18,9 @@ public class SpawnManager : MonoBehaviour
         public int numberOfPowerUp;
     }
 
-    public List<WaveData> waves = new List<WaveData>(); // Wave Array
+    public List<WaveData> waves = new List<WaveData>();
 
-    private List<Transform> selectedSpawnPoints; // Keep Spawn Array
+    private List<Transform> selectedSpawnPoints;
 
     void Start()
     {
@@ -32,55 +32,63 @@ public class SpawnManager : MonoBehaviour
         for (int waveIndex = 0; waveIndex < waves.Count; waveIndex++)
         {
             WaveData currentWave = waves[waveIndex];
-
             Debug.Log($"Starting Wave #{waveIndex + 1}");
 
             yield return new WaitForSeconds(currentWave.delayStart);
 
             SpawnPowerUps(currentWave.numberOfPowerUp);
-
             SelectRandomSpawnPoints(currentWave.numberOfRandomSpawnPoint);
-
             yield return StartCoroutine(SpawnEnemyRoutine(currentWave));
 
             Debug.Log($"Wave #{waveIndex + 1} Completed!");
         }
-
         Debug.Log("All Waves Completed!");
     }
 
     IEnumerator SpawnEnemyRoutine(WaveData wave)
     {
         int enemiesSpawned = 0;
+        List<Transform> availableSpawnPoints = new List<Transform>(selectedSpawnPoints);
 
         while (enemiesSpawned < wave.totalSpawnEnemies)
         {
-            SpawnEnemy();
+            if (availableSpawnPoints.Count == 0)
+            {
+                availableSpawnPoints = new List<Transform>(selectedSpawnPoints);
+            }
+
+            int spawnIndex = Random.Range(0, availableSpawnPoints.Count);
+            Transform spawnPoint = availableSpawnPoints[spawnIndex];
+            availableSpawnPoints.RemoveAt(spawnIndex);
+
+            SpawnEnemy(spawnPoint);
             enemiesSpawned++;
+
             yield return new WaitForSeconds(wave.spawnInterval);
         }
     }
 
     void SpawnPowerUps(int numberOfPowerUp)
     {
+        HashSet<int> usedIndexes = new HashSet<int>();
+
         for (int i = 0; i < numberOfPowerUp; i++)
         {
-            int randomIndex = Random.Range(0, spawnPoints.Length);
-            Instantiate(
-                powerUpPrefab,
-                spawnPoints[randomIndex].position,
-                Quaternion.identity
-            );
-        }
+            int randomIndex;
+            do
+            {
+                randomIndex = Random.Range(0, spawnPoints.Length);
+            } while (!usedIndexes.Add(randomIndex));
 
-        Debug.Log($"Spawned {numberOfPowerUp} PowerUps at random locations.");
+            Instantiate(powerUpPrefab, spawnPoints[randomIndex].position, Quaternion.identity);
+        }
     }
 
     void SelectRandomSpawnPoints(int numberOfRandomSpawnPoint)
     {
         selectedSpawnPoints = new List<Transform>();
-
         List<int> availableIndexes = new List<int>();
+
         for (int i = 0; i < spawnPoints.Length; i++)
         {
             availableIndexes.Add(i);
@@ -92,21 +100,13 @@ public class SpawnManager : MonoBehaviour
             selectedSpawnPoints.Add(spawnPoints[availableIndexes[randomIndex]]);
             availableIndexes.RemoveAt(randomIndex);
         }
-
-        Debug.Log("Selected Spawn Points: " + string.Join(", ", selectedSpawnPoints));
     }
 
-    void SpawnEnemy()
+    void SpawnEnemy(Transform spawnPoint)
     {
-        if (selectedSpawnPoints.Count == 0 || enemyPrefabs.Count == 0) return;
+        if (enemyPrefabs.Count == 0) return;
 
-        int randomIndex = Random.Range(0, selectedSpawnPoints.Count);
-        int enemyIndex = Random.Range(0, enemyPrefabs.Count); // Randomly select an enemy
-
-        Instantiate(
-            enemyPrefabs[enemyIndex], // Spawn a random enemy from the list
-            selectedSpawnPoints[randomIndex].position,
-            Quaternion.identity
-        );
+        int enemyIndex = Random.Range(0, enemyPrefabs.Count);
+        Instantiate(enemyPrefabs[enemyIndex], spawnPoint.position, Quaternion.identity);
     }
 }
