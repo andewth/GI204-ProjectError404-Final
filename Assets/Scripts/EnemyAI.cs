@@ -47,28 +47,26 @@ public class EnemyAI : MonoBehaviour
             Vector3 direction = (player.position - transform.position).normalized;
             transform.position += direction * moveSpeed * Time.deltaTime;
 
-            // หมุนให้หันหน้าหาผู้เล่น (แต่ไม่ให้ศัตรูก้มเงย)
+            // หมุนให้หันหน้าหาผู้เล่น
             transform.LookAt(new Vector3(player.position.x, transform.position.y, player.position.z));
         }
     }
 
-    public void TakeDamage(int damage, Vector3 hitDirection)
+    public void TakeDamage(int damage, Vector3 bulletVelocity, float bulletMass)
     {
         Debug.Log($"Taking {damage} damage");
         currentHealth -= damage;
 
-        // กระเด็นถอยหลัง
         if (rb != null)
         {
-            // คำนวณระยะห่างระหว่างกระสุนและศัตรู
-            float distance = Vector3.Distance(transform.position, hitDirection);
+            // คำนวณโมเมนตัมของกระสุน
+            Vector3 bulletMomentum = bulletMass * bulletVelocity;
 
-            // คำนวณแรงกระแทกโดยใช้ Universal Gravitation
-            float force = CalculateGravitationalForce(enemyMass, bulletMass, distance);
-            Vector3 knockbackDirection = (transform.position - hitDirection).normalized;
+            // คำนวณแรงกระแทก (Action = Reaction)
+            Vector3 knockbackForce = bulletMomentum / Time.fixedDeltaTime;
 
-            // ใช้ค่าคำนวณแรงในการกระเด็น
-            rb.AddForce(knockbackDirection * force, ForceMode.Impulse);
+            // ใช้แรงกระแทกเพื่อกระเด็น
+            rb.AddForce(knockbackForce / enemyMass, ForceMode.Impulse);
         }
 
         if (currentHealth <= 0)
@@ -76,9 +74,9 @@ public class EnemyAI : MonoBehaviour
             Die();
         }
 
-        // เริ่ม Coroutine เพื่อหยุดการเคลื่อนที่เป็นเวลา 2 วินาที
         StartCoroutine(StopMovementAndResumeAfterDelay());
     }
+
 
     // คำนวณแรงกระแทกจาก Universal Gravitation
     float CalculateGravitationalForce(float m1, float m2, float distance)
@@ -114,22 +112,24 @@ public class EnemyAI : MonoBehaviour
     {
         if (other.CompareTag("Bullet"))
         {
-            // คำนวณทิศทางการกระแทกจากตำแหน่งกระสุน
-            Vector3 hitDirection = (transform.position - other.transform.position).normalized;
-
-            // ปรับแกน Y ของทิศทางให้กระเด็นขึ้นเล็กน้อย
-            hitDirection.y = 0.5f;
+            // ดึง Rigidbody ของกระสุน
+            Rigidbody bulletRb = other.GetComponent<Rigidbody>();
 
             // ดึงค่าดาเมจจากกระสุน
             Bullet bullet = other.GetComponent<Bullet>();
             int damage = (bullet != null) ? bullet.damage : damageFromBullet; // ใช้ค่าดาเมจจาก Bullet ถ้ามี
 
-            // ส่งค่า damage และ hitDirection ไปยังฟังก์ชัน TakeDamage
-            TakeDamage(damage, hitDirection);
+            // ใช้ความเร็วและมวลของกระสุนเพื่อคำนวณแรงกระแทก
+            Vector3 bulletVelocity = bulletRb != null ? bulletRb.linearVelocity : Vector3.zero;
+            float bulletMass = bulletRb != null ? bulletRb.mass : 1f;
 
-            // ทำลายกระสุนหลังจากโดน
+            // ส่งค่า damage และ bullet physics ไปยัง TakeDamage
+            TakeDamage(damage, bulletVelocity, bulletMass);
+
+            // ทำลายกระสุน
             Destroy(other.gameObject);
         }
     }
+
 }
 
